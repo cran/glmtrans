@@ -1,0 +1,206 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+bibliography: reference.bib
+---
+<a id="top"></a>
+
+---
+title: "A demonstration of the glmtrans package"
+author: "Ye Tian and Yang Feng"
+date: "`r Sys.Date()`"
+header-includes:
+   - \usepackage{dsfont}
+   - \usepackage{bm}
+   - \usepackage[mathscr]{eucal}
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{glmtrans-demo}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+We provide an introductory demo of the usage for the \verb+glmtrans+ package. This package implements the transfer learning algorithms for high-dimensional generalized linear models (@tian2021transfer).
+
+* [Introduction](#intro)
+
+  + [Generalized linear models (GLMs)](#glm)
+
+  + [Two-step transfer learning algorithms](#alg)
+  
+  + [Transferable source detection](#detection)
+  
+  + [Implementation](#implement)
+
+* [Installation](#install)
+
+* [Examples on Simulated Data](#exp)
+
+  + [Model fitting and prediction](#fitting)
+
+  + [Plotting the source detection result](#plot)
+
+* [A Real Data Set: Micromass](#micromass)
+
+
+```{r, echo = FALSE}
+library(formatR)
+```
+# Introduction{#intro}
+
+## Generalized linear models (GLMs){#glm}
+
+Given the predictor $\bm{x}$, if response $y$ follows the generalized linear models (GLMs), then its distribution satisfies
+$$
+  y|\bm{x} \sim \mathbb{P}(y|\bm{x}) = \rho(y)\exp\{y\bm{x}^T\bm{w} - \psi(\bm{x}^T\bm{w})\},
+$$
+where $\psi'(\bm{x}^T\bm{w}) = \mathbb{E}(y|\bm{x})$ is called the \emph{inverse link function} (@mccullagh1989generalized). Another important property is that $\text{Var}(y|\bm{x})=\psi''(\bm{x}^T\bm{w})$, which is derived from the exponential family property. It is $\psi$ which characterizes different GLMs. For example, in Gaussian model, we have the continuous response $y$ and $\psi(u)=\frac{1}{2}u^2$; in the logistic model, $y$ is binary and $\psi(u)=\log(1+e^u)$; and in Poisson model, we have the integral response $y$ and $\psi(u)=e^u$.
+
+
+
+## Two-step transfer learning algorithms{#alg}
+
+Consider the multi-source transfer learning problem. Suppose we have the \emph{target} data $(X^{(0)}, Y^{(0)}) = \{\bm{x}_{i}^{(0)}, y_{i}^{(0)}\}_{i=1}^{n_0}$ and \emph{source} data $\{(X^{(k)}, Y^{(k)})\}_{k=1}^K = \{\{(\bm{x}_{i}^{(k)}, y_{i}^{(k)})\}_{i=1}^{n_k}\}_{k=1}^K$ for $k = 1,\ldots, K$. Denote the target coefficient $\bm{\beta} = \bm{w}^{(0)}$. Suppose target and source data follow the GLM as
+$$
+  y^{(k)}|\bm{x}^{(k)} \sim \mathbb{P}(y^{(k)}|\bm{x}^{(k)}) = \rho(y^{(k)})\exp\{y^{(k)}(\bm{x}^{(k)})^T\bm{w}^{(k)} - \psi((\bm{x}^{(k)})^T\bm{w}^{(k)})\}.
+$$
+
+In order to borrow information from transferable sources, @bastani2020predicting and @li2020transfer developed \emph{two-step transfer learning algorithms} for high-dimensional linear models. In the first step, an approximate estimator is achieved via the information from the target data and useful source data. In the second step, the target data is used to debias the estimator obtained from the first step, leading to the final estimator.
+
+@tian2021transfer extends the idea into GLM and proposes the corresponding \emph{oracle} algorithm, which can be easily applied when transferable sources are known. It is proved to enjoy a sharper bound of $\ell_2$-estimation error when the transferable source and target data are sufficiently similar.
+
+
+## Transferable source detection{#detection}
+
+In the multi-source transfer learning problem, some adversarial sources may share little similarity with the target, which can mislead the fitted model. We call this phenomenon as \emph{negative transfer} (@pan2009survey, @torrey2010transfer, @weiss2016survey). 
+
+To detect which sources are transferable, @tian2021transfer develops an \emph{algorithm-free} detection approach. Simply speaking, it tries to compute the gain for transferring each single source and compare it with the baseline where only the target data is used. The sources enjoying significant performance gain compared with the baseline are regarded as transferable ones. @tian2021transfer also proves the detection consistency property for this method under the high-dimensional GLM setting.
+
+
+## Implementation{#implement}
+
+The implementation of this package leverages on package `glmnet`, which applies the cyclic coordinate gradient descent and is very efficient (@friedman2010regularization). We use the argument `offset` provided by the function `glmnet` and `cv.glmnet` to implement our two-step algorithms. Besides Lasso (@tibshirani1996regression), this package can adapt the elastic net type penalty (@zou2005regularization).
+
+# Installation{#install}
+`glmtrans` is now available on CRAN and can be easily intalled by one-line code. 
+```{r, eval=FALSE}
+install.packages("glmtrans", repos = "http://cran.us.r-project.org")
+```
+Then we can load the package:
+```{r}
+library(glmtrans)
+```
+
+
+# Example Codes on Simulated Data{#exp}
+
+In this section, we show the user how to use the provided functions to fit the model, make predictions and visualize the results. We take logistic data as an example.
+
+## Model fitting and prediction{#fitting}
+
+We first generate some logistic data through function `models`. For target data, we set the coefficient vector $\bm{\beta} = (0.5\cdot \bm{1}_s, \bm{0}_{p-s})$, where $p = 1000$ and $s = 15$. For $k$ in transferable source index set $\mathcal{A}$, let $\bm{w}^{(k)} = \bm{\beta} + h/p\cdot\bm{\mathscr{R}}_p^{(k)}$, where $h = 5$ and $\bm{\mathscr{R}}_p^{(k)}$ are $p$ independent Rademacher variables (being $-1$ or $1$ with equal probability) for any $k$. $\bm{\mathscr{R}}_p^{(k)}$ is independent with $\bm{\mathscr{R}}_p^{(k')}$ for any $k \neq k'$. The coefficient of non-transferable sources is set to be $\bm{\xi}+h/p\cdot \bm{\mathscr{R}}_p^{(k)}$. And $\bm{\xi}_{S'} = 0.5 \cdot \bm{1}_{2s}, \quad \bm{\xi}_{(S')^c} = \bm{0}_{p-2s}$,
+where $S' = S'_1 \cup S_2'$ and $|S_1'| = |S_2'| = s = 15$. $S_1' = \{s+1, \ldots, 2s\}$, and $S_2'$ is randomly sampled from $\{2s+1, \ldots, p\}$. We also add an intercept $0.5$. The generating procedure of each non-transferable source data is independent.  Predictors from target and source $\bm{x}^{(k)}_i \overset{i.i.d.}{\sim} N(\bm{0}, \bm{\Sigma})$, where $\bm{\Sigma} = (0.5^{|i-j|})_{p \times p}$. The target sample size $n_0 = 100$ and each source sample size $n_k = 150$ for any $k = 1, \ldots, K$. Let $K = 5$, $\mathcal{A} = \{1, 2, 3\}$.
+
+We generate the training data as follows.
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+set.seed(1, kind = "L'Ecuyer-CMRG")
+D.training <- models(family = "binomial", type = "all", Ka = 3, K = 5, n.target = 150, n.source = rep(150, 5))
+```
+
+Then suppose we know $\mathcal{A}$, let's fit an "oracle" GLM transfer learning model on the target data and source data in $\mathcal{A}$ by the oracle algorithm. We denote this procedure as Oralce-Trans-GLM.
+
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=70), message=FALSE}
+fit.oracle <- glmtrans(target = D.training$target, source = D.training$source, family = "binomial", transfer.source.id = 1:3, cores = 2)
+```
+
+Notice that we set the argument `transfer.source.id` equal to $\mathcal{A} = \{1, 2, 3\}$ to transfer only the first three sources. 
+
+And the output of `glmtrans` function is an object belonging to S3 class "glmtrans". It contains:
+
+* beta: the estimated coefficient vector.
+
+* family: the response type.
+
+* transfer.source.id: the transferable souce index. If in the input, `transfer.source.id = 1:length(source)` or `transfer.source.id = "all"`, then the outputed `transfer.source.id = 1:length(source)`. If the inputed `transfer.source.id = "auto"`, only transferable source detected by the algorithm will be outputed.
+
+* fitting.list: 
+    + w_a: the estimator obtained from the transferring step.
+    + delta_a: the estimator obtained from the debiasing step.
+    + target.valid.loss: the validation (or cross-validation) loss on target data. Only available when `transfer.source.id = "auto"`.
+    + source.loss: the loss on each source data. Only available when `transfer.source.id = "auto"`.
+    + epsilon0: the threshold to determine transferability will be set as (1+`epsilon0`)$\cdot$loss of validation (cv) target data. Only available when `transfer.source.id = "auto"`.
+    + threshold: the threshold to determine transferability. Only available when `transfer.source.id = "auto"`.
+
+Then suppose we do not know $\mathcal{A}$, let's set `transfer.source.id = "auto"` to apply the transferable source detection algorithm to get estimate $\hat{\mathcal{A}}$. After that, `glmtrans` will automatically run the oracle algorithm on $\hat{\mathcal{A}}$ to fit the model. We denote the approach as Trans-GLM.
+
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+fit.detection <- glmtrans(target = D.training$target, source = D.training$source, family = "binomial", transfer.source.id = "auto", cores = 2)
+```
+
+From the results, we could see that $\mathcal{A} = \{1, 2, 3\}$ is successfully detected via the detection algorithm. Next, to demonstrate the effectiveness of GLM transfer learning algorithm and the transferable source detection algorithm, we also fit the naive Lasso on target data (Lasso) and transfer learning model using all source data (Pooled-Trans-GLM) as baselines.
+
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=70), message=FALSE}
+library(glmnet)
+fit.lasso <- cv.glmnet(x = D.training$target$x, y = D.training$target$y, family = "binomial")
+fit.pooled <- glmtrans(target = D.training$target, source = D.training$source, family = "binomial", transfer.source.id = "all",  cores = 2)
+```
+
+Finally, we compare the $\ell_2$-estimation errors of the target coefficient $\bm{\beta}$ by different methods.
+```{r, tidy=TRUE, tidy.opts=list(width.cutoff=70), message=FALSE}
+beta <- c(0, rep(0.5, 15), rep(0, 1000-15))
+er <- numeric(4)
+names(er) <- c("Lasso", "Pooled-Trans-GLM", "Trans-GLM", "Oracle-Trans-GLM")
+er["Lasso"] <- sqrt(sum((coef(fit.lasso)-beta)^2))
+er["Pooled-Trans-GLM"] <- sqrt(sum((fit.pooled$beta-beta)^2))
+er["Trans-GLM"] <- sqrt(sum((fit.detection$beta-beta)^2))
+er["Oracle-Trans-GLM"] <- sqrt(sum((fit.oracle$beta-beta)^2))
+er
+```
+Note that the transfer learning models outperform the classical Lasso fitted on target data. And due to negative transfer, Pooled-Trans-GLM performs worse than Oracle-Trans-GLM. By correctly detecting $\mathcal{A}$, the behavior of Trans-GLM mimics the oracle.
+
+## Plotting the source detection result{#plot}
+
+We could visualize the transferable source detection results by applying `plot` function on objects in class "glmtrans" or "glmtrans_source_detection". Loss of each source and the transferability threshold will be drawed. Function `glmtrans` outputs objects in class "glmtrans", while function `source_detection` outputs objects in class "glmtrans_source_detection". The function `source_detection` detects $\mathcal{A}$ without the post-detecting model fitting step.
+
+Call `plot` function to visualize the results as follows.
+
+```{r, tidy=TRUE}
+plot(fit.detection)
+```
+
+
+# A Real Data Set: Micromass{#micromass}
+
+This package includes a real-data set about bacterial categorization. The information about 9 genera of gram, including 12 positive and 8 negative bacterial species are available in the data set Micromass (@mahe2014automatic). There are 541 observations and 1300 variables in total. Each variable records some feature of the gram. The original data MicroMass is available on UCI machine learning repository (\url{https://archive.ics.uci.edu/ml/datasets/MicroMass}).
+
+In @tian2021transfer, 10 groups are constructed from the original 20 species and each group consists of two different species of gram. Here the data included is the preprocessed one. The data is a list of length 10, and each of the components is a group with two species. The list name records the species. After loading the package `glmtrans`, the transformed data set will be loaded as a list `micromass`.
+
+The list of species' names in each group:
+
+* "QBG.CRP-JNH.ZIJ"
+
+* "AUG.AEX-RTO.JFR"
+
+* "QWP.LRO-RTO.TQH"
+
+* "AUG.HSS-QWP.DRH"
+
+* "QBG.KGI-JNH.FLH"
+
+* "VVJ.KWJ-BUT.DNW"
+
+* "VVJ.KSF-BUT.TRH"
+
+* "NYV.VCE-EMD.FZO"
+
+* "NYV.XSY-EMD.WXC"
+
+* "BUT.BIK-BUT.YZE"
+
+
+# Reference
+
+
+
+
