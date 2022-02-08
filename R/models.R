@@ -9,6 +9,7 @@
 #' \item "poisson": poisson distribution. When \code{family = "poisson"}, the input response in both \code{target} and \code{source} should be non-negative.
 #' }
 #' @param type the type of generated data. Can be "all", "source" or "target".
+#' @param cov.type the type of covariates. Can be 1 or 2 (numerical). If it equals to 1, the predictors will be generated from the distribution used in Section 4.1.1 (Ah-Trans-GLM) in the latest version of Tian, Y. and Feng, Y., 2021. If it equals to 2, the predictors will be generated from the distribution used in Section 4.1.2 (When transferable sources are unknown).
 #' \itemize{
 #' \item "all": generate a list with a target data set of size \code{n.target} and K source data set of size \code{n.source}.
 #' \item "source": generate a list with K source data set of size \code{n.source}.
@@ -29,62 +30,81 @@
 #' }
 #' @seealso \code{\link{glmtrans}}.
 #' @references
-#' Tian, Y. and Feng, Y., 2021. \emph{Transfer learning with high-dimensional generalized linear models. Submitted.}
+#' Tian, Y. and Feng, Y., 2021. \emph{Transfer Learning under High-dimensional Generalized Linear Models. arXiv preprint arXiv:2105.14328.}
 #' @examples
-#' set.seed(1, kind = "L'Ecuyer-CMRG")
+#' set.seed(0, kind = "L'Ecuyer-CMRG")
 #'
 #' D.all <- models("binomial", type = "all")
 #' D.target <- models("binomial", type = "target")
 #' D.source <- models("binomial", type = "source")
 #'
-models <- function(family = c("gaussian", "binomial", "poisson"), type = c("all", "source", "target"), h = 5, K = 5, n.target = 100, n.source = rep(150, K), s = 15, p = 1000, Ka = K) {
+
+models <- function(family = c("gaussian", "binomial", "poisson"), type = c("all", "source", "target"), cov.type = 1, h = 5, K = 5, n.target = 200, n.source = rep(100, K), s = 5, p = 500, Ka = K) {
   family <- match.arg(family)
-  sign <- "flip"
   target <- NULL
   source <- NULL
 
   type <- match.arg(type)
+  sig.strength <- 0.5
 
   if (family == "gaussian" || family == "binomial") {
-    Sigma <- outer(1:p, 1:p, function(x,y){
-      0.5^(abs(x-y))
-    })
-    R <- chol(Sigma)
-
-
     if(type == "all" || type == "target") {
-      target <- list(x = NULL, y = NULL)
-      wk <- c(rep(0.5, s), rep(0, p-s))
-      target$x <- x <- matrix(rnorm(n.target*p), nrow = n.target) %*% R
+      wk <- c(rep(sig.strength, s), rep(0, p-s))
+      if (cov.type == 1) {
+        Sigma <- outer(1:p, 1:p, function(x,y){
+          0.5^(abs(x-y))
+        })
+        R <- chol(Sigma)
+        target <- list(x = NULL, y = NULL)
+
+        target$x <- matrix(rnorm(n.target*p), nrow = n.target) %*% R
+
+      } else if (cov.type == 2) {
+        Sigma <- outer(1:p, 1:p, function(x,y){
+          0.9^(abs(x-y))
+        })
+        R <- chol(Sigma)
+        target$x <- matrix(rnorm(n.target*p), nrow = n.target) %*% R
+      }
+
       if (family == "gaussian") {
-        target$y <- as.numeric(x %*% wk + rnorm(n.target))
-      } else {
-        pr <- 1/(1+exp(-x %*% wk))
+        target$y <- as.numeric(target$x %*% wk + rnorm(n.target))
+      } else if (family == "binomial") {
+        pr <- 1/(1+exp(-target$x %*% wk))
         target$y <- sapply(1:n.target, function(i){sample(0:1, size = 1, prob = c(1-pr[i], pr[i]))})
       }
     }
 
     if(type == "all" || type == "source") {
+     if (cov.type == 1) {
+        Sigma <- outer(1:p, 1:p, function(x,y){
+          0.5^(abs(x-y))
+        })
+        eps <- rnorm(p, sd = 0.3)
+        Sigma <- Sigma + eps %*% t(eps)
+
+        R <- chol(Sigma)
+      }
+
       source <- sapply(1:K, function(k){
         if (k <= Ka){
-          if (sign == "flip") {
-            wk <- c(rep(0.5, s), rep(0, p-s)) + h/p*sample(c(-1,1), size = p, replace = TRUE)
-          } else if (sign == "neg") {
-            wk <- c(rep(0.5, s), rep(0, p-s)) - h/p
-          }
-
+          wk <- c(rep(sig.strength, s), rep(0, p-s)) + h/p*sample(c(-1,1), size = p, replace = TRUE)
         } else {
           sig.index <- c(s+1:s, sample((2*s+1):p, s))
           wk <- rep(0, p)
-          wk[sig.index] <- 0.5
+          wk[sig.index] <- sig.strength
           wk <- wk + 2*h/p*sample(c(-1,1), size = p, replace = TRUE)
         }
+        if (cov.type == 1) {
+          x <- matrix(rnorm(n.source[k]*p), nrow = n.source[k]) %*% R
+        } else if (cov.type == 2) {
+          x <- matrix(rt(n.source[k]*p, df = 4), nrow = n.source[k])
+        }
 
-        x <- matrix(rnorm(n.source[k]*p), nrow = n.source[k]) %*% R
         if (family == "gaussian") {
-          y <- as.numeric(0.5 + x %*% wk + rnorm(n.source[k]))
-        } else {
-          pr <- 1/(1+exp(-0.5 -x %*% wk))
+          y <- as.numeric(0.5*I(k > Ka) + x %*% wk + rnorm(n.source[k]))
+        } else if (family == "binomial") {
+          pr <- 1/(1+exp(-0.5*I(k > Ka) -x %*% wk))
           y <- sapply(1:n.source[k], function(i){
             sample(0:1, size = 1, prob = c(1-pr[i], pr[i]))
           })
@@ -95,40 +115,56 @@ models <- function(family = c("gaussian", "binomial", "poisson"), type = c("all"
 
 
   } else { # model == "poisson
-    Sigma <- outer(1:p, 1:p, function(x,y){
-      0.5^(abs(x-y))
-    })
-    R <- chol(Sigma)
-
-
     if(type == "all" || type == "target") {
-      wk <- c(rep(0.5, s), rep(0, p-s))
+      if (cov.type == 1) {
+        Sigma <- outer(1:p, 1:p, function(x,y){
+          0.5^(abs(x-y))
+        })
+        R <- chol(Sigma)
+      } else if (cov.type == 2) {
+        Sigma <- outer(1:p, 1:p, function(x,y){
+          0.9^(abs(x-y))
+        })
+        R <- chol(Sigma)
+      }
+      wk <- c(rep(sig.strength, s), rep(0, p-s))
+
       target$x <- matrix(rnorm(n.target*p), nrow = n.target) %*% R
-      target$x[target$x > 1] <- 1
-      target$x[target$x < -1] <- -1
+
+      target$x[target$x > 0.5] <- 0.5
+      target$x[target$x < -0.5] <- -0.5
       lambda <- as.numeric(exp(target$x %*% wk))
       target$y <- rpois(n.target, lambda)
     }
 
     if(type == "all" || type == "source") {
+      if (cov.type == 1) {
+        Sigma <- outer(1:p, 1:p, function(x,y){
+          0.5^(abs(x-y))
+        })
+        eps <- rnorm(p, sd = 0.3)
+        Sigma <- Sigma + eps %*% t(eps)
+
+        R <- chol(Sigma)
+      }
+
       source <- sapply(1:K, function(k){
         if (k <= Ka){
-          if (sign == "flip") {
-            wk <- c(rep(0.5, s), rep(0, p-s)) + h/p*sample(c(-1,1), size = p, replace = TRUE)
-          } else if (sign == "neg") {
-            wk <- c(rep(0.5, s), rep(0, p-s)) - h/p
-          }
+          wk <- c(rep(sig.strength, s), rep(0, p-s)) + h/p*sample(c(-1,1), size = p, replace = TRUE)
         } else {
           sig.index <- c(s+1:s, sample((2*s+1):p, s))
           wk <- rep(0, p)
-          wk[sig.index] <- 0.5
+          wk[sig.index] <- sig.strength
           wk <- wk + 2*h/p*sample(c(-1,1), size = p, replace = TRUE)
         }
-
-        x <- matrix(rnorm(n.source[k]*p), nrow = n.source[k]) %*% R
-        x[x > 1] <- 1
-        x[x < -1] <- -1
-        lambda <- as.numeric(exp(0.5 + x %*% wk))
+        if (cov.type == 1) {
+          x <- matrix(rnorm(n.source[k]*p), nrow = n.source[k]) %*% R
+        } else if (cov.type == 2) {
+          x <- matrix(rt(n.source[k]*p, df = 4), nrow = n.source[k])
+        }
+        x[x > 0.5] <- 0.5
+        x[x < -0.5] <- -0.5
+        lambda <- as.numeric(exp(0.5*I(k > Ka) + x %*% wk))
         y <- rpois(n.source[k], lambda)
 
         list(x = x, y = y)
@@ -136,6 +172,7 @@ models <- function(family = c("gaussian", "binomial", "poisson"), type = c("all"
     }
 
   }
+
 
   if (type == "all") {
     return(list(target = target, source = source))

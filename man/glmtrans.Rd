@@ -13,14 +13,14 @@ glmtrans(
   standardize = TRUE,
   intercept = TRUE,
   nfolds = 10,
-  epsilon0 = 0.01,
   cores = 1,
   valid.proportion = NULL,
   valid.nfolds = 3,
-  lambda.transfer = "lambda.1se",
-  lambda.debias = "lambda.min",
-  lambda.detection = "lambda.min",
+  lambda = c(transfer = "lambda.1se", debias = "lambda.min", detection = "lambda.1se"),
   detection.info = TRUE,
+  target.weights = NULL,
+  source.weights = NULL,
+  C0 = 2,
   ...
 )
 }
@@ -36,9 +36,9 @@ glmtrans(
 \item "poisson": poisson distribution. When \code{family = "poisson"}, the input response in both \code{target} and \code{source} should be non-negative.
 }}
 
-\item{transfer.source.id}{transferable source index. Can be either a subset of \code{{1, ..., length(source)}}, "all" or "auto". Default = \code{"auto"}.
+\item{transfer.source.id}{transferable source indices. Can be either a subset of \code{{1, ..., length(source)}}, "all" or "auto". Default = \code{"auto"}.
 \itemize{
-\item a subset of \code{{1, ..., length(source)}}: only transfer sources with the specific index.
+\item a subset of \code{{1, ..., length(source)}}: only transfer sources with the specific indices.
 \item "all": transfer all sources.
 \item "auto": run transferable source detection algorithm to automatically detect which sources to transfer. For the algorithm, refer to the documentation of function \code{source_detection}.
 }}
@@ -51,25 +51,25 @@ glmtrans(
 
 \item{nfolds}{the number of folds. Used in the cross-validation for GLM elastic net fitting procedure. Default = 10. Smallest value allowable is \code{nfolds = 3}.}
 
-\item{epsilon0}{a positive number. Useful only when \code{transfer.source.id = "auto"}. The threshold to determine transferability will be set as \eqn{(1+epsilon0)*(validation (or cross-validation) loss of target data)}. Default = 0.01. For details, refer to Algorithm 3 in Tian, Y. and Feng, Y., 2021.}
-
 \item{cores}{the number of cores used for parallel computing. Default = 1.}
 
 \item{valid.proportion}{the proportion of target data to be used as validation data when detecting transferable sources. Useful only when \code{transfer.source.id = "auto"}. Default = \code{NULL}, meaning that the cross-validation will be applied.}
 
 \item{valid.nfolds}{the number of folds used in cross-validation procedure when detecting transferable sources. Useful only when \code{transfer.source.id = "auto"} and \code{valid.proportion = NULL}. Default = 3.}
 
-\item{lambda.transfer}{lambda (the penalty parameter) used in transferrring step. Can be either "lambda.min" or "lambda.1se". Default = "lambda.1se". The sequence of lambda will be genenated automatically by \code{cv.glmnet}. For more details about lambda choice, see the documentation of \code{cv.glmnet} in package \code{glmnet}.
+\item{lambda}{a vector indicating the choice of lambdas in transferring, debiasing and detection steps. Should be a vector with names "transfer", "debias", and "detection", each component of which can be either "lambda.min" or "lambda.1se". Component \code{transfer} is the lambda (the penalty parameter) used in transferrring step. Component \code{debias} is the lambda used in debiasing step. Component \code{detection} is the lambda used in the transferable source detection algorithm. Default choice of \code{lambda.transfer} and \code{lambda.detection} are "lambda.1se", while default \code{lambda.debias} = "lambda.min". If the user wants to change the default setting, input a vector with corresponding \code{lambda.transfer}/\code{lambda.debias}/\code{lambda.detection} names and corresponding values. Examples: lambda = list(transfer = "lambda.min", debias = "lambda.1se"); lambda = list(transfer = "lambda.min", detection = "lambda.min").
 \itemize{
 \item "lambda.min": value of lambda that gives minimum mean cross-validated error in the sequence of lambda.
 \item "lambda.1se": largest value of lambda such that error is within 1 standard error of the minimum.
 }}
 
-\item{lambda.debias}{lambda (the penalty parameter) used in debiasing step. Can be either "lambda.min" or "lambda.1se". Default = "lambda.min".}
-
-\item{lambda.detection}{lambda (the penalty parameter) used in the transferable source detection algorithm. Can be either "lambda.min" or "lambda.1se". Default = "lambda.min".}
-
 \item{detection.info}{the logistic flag indicating whether to print detection information or not. Useful only when \code{transfer.source.id = "auto"}. Default = \code{TURE}.}
+
+\item{target.weights}{weight vector for each target instance. Should be a vector with the same length of target response. Default = \code{NULL}, which makes all instances equal-weighted.}
+
+\item{source.weights}{a list of weight vectors for the instances from each source. Should be a list with the same length of the number of sources. Default = \code{NULL}, which makes all instances equal-weighted.}
+
+\item{C0}{the constant used in the transferable source detection algorithm. See Algorithm 2 in Tian, Y. and Feng, Y., 2021. Default = 2.}
 
 \item{...}{additional arguments.}
 }
@@ -84,7 +84,6 @@ An object with S3 class \code{"glmtrans"}.
 \item{delta_a}{the estimator obtained from the debiasing step.}
 \item{target.valid.loss}{the validation (or cross-validation) loss on target data. Only available when \code{transfer.source.id = "auto"}.}
 \item{source.loss}{the loss on each source data. Only available when \code{transfer.source.id = "auto"}.}
-\item{epsilon0}{the threshold to determine transferability will be set as \eqn{(1+epsilon0)*loss of validation (cv) target data}. Only available when \code{transfer.source.id = "auto"}.}
 \item{threshold}{the threshold to determine transferability. Only available when \code{transfer.source.id = "auto"}.}
 }
 }
@@ -92,10 +91,10 @@ An object with S3 class \code{"glmtrans"}.
 Fit a transfer learning generalized linear model through elastic net regularization with target data set and multiple source data sets. It also implements a transferable source detection algorithm, which helps avoid negative transfer in practice. Currently can deal with Gaussian, logistic and Poisson models.
 }
 \examples{
-set.seed(1, kind = "L'Ecuyer-CMRG")
+set.seed(0, kind = "L'Ecuyer-CMRG")
 
-# fit a linear model
-D.training <- models("gaussian", type = "all", K = 2, p = 500)
+# fit a linear regression model
+D.training <- models("gaussian", type = "all", n.target = 100, K = 2, p = 500)
 D.test <- models("gaussian", type = "target", n.target = 100, p = 500)
 fit.gaussian <- glmtrans(D.training$target, D.training$source)
 y.pred.glmtrans <- predict(fit.gaussian, D.test$target$x)
@@ -109,8 +108,8 @@ mean((y.pred.glmtrans - D.test$target$y)^2)
 mean((y.pred.lasso - D.test$target$y)^2)
 
 \donttest{
-# fit a logistic model
-D.training <- models("binomial", type = "all", K = 2, p = 500)
+# fit a logistic regression model
+D.training <- models("binomial", type = "all", n.target = 100, K = 2, p = 500)
 D.test <- models("binomial", type = "target", n.target = 100, p = 500)
 fit.binomial <- glmtrans(D.training$target, D.training$source, family = "binomial")
 y.pred.glmtrans <- predict(fit.binomial, D.test$target$x, type = "class")
@@ -124,8 +123,8 @@ mean(y.pred.glmtrans != D.test$target$y)
 mean(y.pred.lasso != D.test$target$y)
 
 
-# fit a Poisson model
-D.training <- models("poisson", type = "all", K = 2, p = 500)
+# fit a Poisson regression model
+D.training <- models("poisson", type = "all", n.target = 100, K = 2, p = 500)
 D.test <- models("poisson", type = "target", n.target = 100, p = 500)
 fit.poisson <- glmtrans(D.training$target, D.training$source, family = "poisson")
 y.pred.glmtrans <- predict(fit.poisson, D.test$target$x, type = "response")
@@ -139,7 +138,7 @@ mean((y.pred.lasso - D.test$target$y)^2)
 }
 }
 \references{
-Tian, Y. and Feng, Y., 2021. \emph{Transfer learning with high-dimensional generalized linear models. Submitted.}
+Tian, Y. and Feng, Y., 2021. \emph{Transfer Learning under High-dimensional Generalized Linear Models. arXiv preprint arXiv:2105.14328.}
 
 Li, S., Cai, T.T. and Li, H., 2020. \emph{Transfer learning for high-dimensional linear regression: Prediction, estimation, and minimax optimality. arXiv preprint arXiv:2006.10593.}
 

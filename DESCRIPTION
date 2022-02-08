@@ -1,23 +1,22 @@
 Package: glmtrans
 Type: Package
-Title: Transfer Learning with Regularized Generalized Linear Models
-Version: 1.0.0
+Title: Transfer Learning under Regularized Generalized Linear Models
+Version: 2.0.0
 Authors@R: c(person("Ye", "Tian", role = c("aut", "cre"), email = "ye.t@columbia.edu"), person("Yang", "Feng", role = "aut", email = "yang.feng@nyu.edu"))
-Description: We provide an efficient implementation for two-step multi-source transfer learning algorithms in high-dimensional generalized linear models (GLMs). The elastic-net penalized GLM with three popular families, including linear, logistic and Poisson models, can be fitted. To avoid negative transfer, a transferable source detection algorithm is available. We also provides visualization for the transferable source detection results. A relevant paper
-    by Ye Tian and Yang Feng (2021) will be available soon on arXiv.
+Description: We provide an efficient implementation for two-step multi-source transfer learning algorithms in high-dimensional generalized linear models (GLMs). The elastic-net penalized GLM with three popular families, including linear, logistic and Poisson regression models, can be fitted. To avoid negative transfer, a transferable source detection algorithm is proposed. We also provides visualization for the transferable source detection results. The relevant paper
+    is available on arXiv: <arXiv:2105.14328>.
 Imports: glmnet, ggplot2, foreach, doParallel, caret, assertthat,
         formatR, stats
 License: GPL-2
 Depends: R (>= 3.5.0)
 Encoding: UTF-8
-LazyData: TRUE
-RoxygenNote: 7.1.0
+RoxygenNote: 7.1.2
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2021-04-27 02:48:27 UTC; yetian
+Packaged: 2022-02-07 23:31:09 UTC; yetian
 Author: Ye Tian [aut, cre],
   Yang Feng [aut]
 Maintainer: Ye Tian <ye.t@columbia.edu>
 Repository: CRAN
-Date/Publication: 2021-04-28 07:50:02 UTC
+Date/Publication: 2022-02-08 07:30:02 UTC

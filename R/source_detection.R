@@ -14,11 +14,12 @@
 #' @param standardize the logical flag for x variable standardization, prior to fitting the model sequence. The coefficients are always returned on the original scale. Default is \code{TRUE}.
 #' @param intercept the logical indicator of whether the intercept should be fitted or not. Default = \code{TRUE}.
 #' @param nfolds the number of folds. Used in the cross-validation for GLM elastic net fitting procedure. Default = 10. Smallest value allowable is \code{nfolds = 3}.
-#' @param epsilon0 a positive number. Useful only when \code{transfer.source.id = "auto"}. The threshold to determine transferability will be set as \eqn{(1+epsilon0)*(validation (or cross-validation) loss of target data)}. Default = 0.01. For details, refer to Algorithm 3 in Tian, Y. and Feng, Y., 2021.
 #' @param cores the number of cores used for parallel computing. Default = 1.
-#' @param valid.proportion the proportion of target data to be used as validation data when detecting transferable sources. Useful only when \code{transfer.source.id = "auto"}. Default = \code{NULL}, meaning that the cross-validation will be applied.
-#' @param valid.nfolds the number of folds used in cross-validation procedure when detecting transferable sources. Useful only when \code{transfer.source.id = "auto"} and \code{valid.proportion = NULL}. Default = 3.
-#' @param lambda.detection lambda (the penalty parameter) used in the transferable source detection algorithm. Can be either "lambda.min" or "lambda.1se". Default = "lambda.min".
+#' @param valid.nfolds the number of folds used in cross-validation procedure when detecting transferable sources. Useful only when \code{transfer.source.id = "auto"}. Default = 3.
+#' @param lambda lambda (the penalty parameter) used in the transferable source detection algorithm. Can be either "lambda.min" or "lambda.1se". Default = "lambda.1se".
+#' @param target.weights weight vector for each target instance. Should be a vector with the same length of target response. Default = \code{NULL}, which makes all instances equal-weighted.
+#' @param source.weights a list of weight vectors for the instances from each source. Should be a list with the same length of the number of sources. Default = \code{NULL}, which makes all instances equal-weighted.
+#' @param C0 the constant used in the transferable source detection algorithm. See Algorithm 2 in Tian, Y. and Feng, Y., 2021. Default = 2.
 #' \itemize{
 #' \item "lambda.min": value of lambda that gives minimum mean cross-validated error in the sequence of lambda.
 #' \item "lambda.1se": largest value of lambda such that error is within 1 standard error of the minimum.
@@ -28,12 +29,11 @@
 #' @return An object with S3 class \code{"glmtrans_source_detection"}.
 #' \item{target.valid.loss}{the validation (or cross-validation) loss on target data. Only available when \code{transfer.source.id = "auto"}.}
 #' \item{source.loss}{the loss on each source data. Only available when \code{transfer.source.id = "auto"}.}
-#' \item{epsilon0}{the threshold to determine transferability will be set as \eqn{(1+epsilon0)*loss of validation (cv) target data}. Only available when \code{transfer.source.id = "auto"}.}
 #' \item{threshold}{the threshold to determine transferability. Only available when \code{transfer.source.id = "auto"}.}
 #' @seealso \code{\link{glmtrans}}, \code{\link{predict.glmtrans}}, \code{\link{models}}, \code{\link{plot.glmtrans}}, \code{\link[glmnet]{cv.glmnet}}, \code{\link[glmnet]{glmnet}}.
 #' @note \code{source.loss} and \code{threshold} outputed by \code{source_detection} can be visualized by function \code{plot.glmtrans}.
 #' @references
-#' Tian, Y. and Feng, Y., 2021. \emph{Transfer learning with high-dimensional generalized linear models. Submitted.}
+#' Tian, Y. and Feng, Y., 2021. \emph{Transfer Learning under High-dimensional Generalized Linear Models. arXiv preprint arXiv:2105.14328.}
 #'
 #' Li, S., Cai, T.T. and Li, H., 2020. \emph{Transfer learning for high-dimensional linear regression: Prediction, estimation, and minimax optimality. arXiv preprint arXiv:2006.10593.}
 #'
@@ -44,87 +44,105 @@
 #' Tibshirani, R., 1996. \emph{Regression shrinkage and selection via the lasso. Journal of the Royal Statistical Society: Series B (Methodological), 58(1), pp.267-288.}
 #'
 #' @examples
-#' set.seed(1, kind = "L'Ecuyer-CMRG")
+#' set.seed(0, kind = "L'Ecuyer-CMRG")
 #'
 #' # study the linear model
-#' D.training <- models("gaussian", type = "all", K = 2, p = 500, Ka = 1)
+#' D.training <- models("gaussian", type = "all", K = 2, p = 500, Ka = 1, n.target = 100, cov.type = 2)
 #' detection.gaussian <- source_detection(D.training$target, D.training$source)
 #' detection.gaussian$transferable.source.id
 #'
 #' \donttest{
 #' # study the logistic model
-#' D.training <- models("binomial", type = "all", p = 500)
+#' D.training <- models("binomial", type = "all", K = 2, p = 500, Ka = 1, n.target = 100, cov.type = 2)
 #' detection.binomial <- source_detection(D.training$target, D.training$source,
 #' family = "binomial", cores = 2)
 #' detection.binomial$transferable.source.id
 #'
 #'
 #' # study Poisson model
-#' D.training <- models("poisson", type = "all", p = 200)
+#' D.training <- models("poisson", type = "all", K = 2, p = 500, Ka = 1, n.target = 100, cov.type = 2)
 #' detection.poisson <- source_detection(D.training$target, D.training$source,
 #' family = "poisson", cores = 2)
 #' detection.poisson$transferable.source.id
 #' }
 source_detection <- function(target, source = NULL, family = c("gaussian", "binomial", "poisson"), alpha = 1, standardize = TRUE,
-                             intercept = TRUE, nfolds = 10, epsilon0 = 0.01, cores = 1, valid.proportion = NULL, valid.nfolds = 3,
-                             lambda.detection = "lambda.min", detection.info = TRUE, ...) {
+                             intercept = TRUE, nfolds = 10, cores = 1, valid.nfolds = 3,
+                             lambda = "lambda.1se", detection.info = TRUE, target.weights = NULL, source.weights = NULL, C0 = 2, ...) {
 
   family <- match.arg(family)
+
+  if (is.null(target.weights)) {
+    target.weights <- rep(1, length(target$y))
+  }
+
+  if (is.null(source.weights)) {
+    source.weights <- sapply(1:length(source), function(i){
+      rep(1, length(source[[i]]$y))
+    }, simplify = FALSE)
+  }
+
+
 
   if (cores > 1) {
     registerDoParallel(cores)
   }
 
-
-  if (!is.null(valid.proportion)) {
-    target.valid.id <- sample(1:length(target$y), size = floor(length(target$y)*valid.proportion))
-    if (lambda.detection == "lambda.1se") {
-      wa.target <- coef(cv.glmnet(x = as.matrix(target$x[-target.valid.id, , drop = F]), y = target$y[-target.valid.id], family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, ...))
-    } else {
-      wa.cv <- cv.glmnet(x = as.matrix(target$x[-target.valid.id, , drop = F]), y = target$y[-target.valid.id], family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, ...)
-      wa.target <- c(wa.cv$glmnet.fit$a0[which(wa.cv$lambda == wa.cv$lambda.min)], wa.cv$glmnet.fit$beta[, which(wa.cv$lambda == wa.cv$lambda.min)])
-    }
-    target.valid.loss <- loss(wa.target, as.matrix(target$x[target.valid.id, , drop = F]), target$y[target.valid.id], family)
-    source.loss <- sapply(1:length(source), function(k){
-      if (lambda.detection == "lambda.1se") {
-        wa <- coef(cv.glmnet(x = as.matrix(rbind(target$x[-target.valid.id, , drop = F], source[[k]]$x)), y = c(target$y[-target.valid.id], source[[k]]$y), family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, ...))
-      } else {
-        wa.cv <- cv.glmnet(x = as.matrix(rbind(target$x[-target.valid.id, , drop = F], source[[k]]$x)), y = c(target$y[-target.valid.id], source[[k]]$y), family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, ...)
-        wa <- c(wa.cv$glmnet.fit$a0[which(wa.cv$lambda == wa.cv$lambda.min)], wa.cv$glmnet.fit$beta[, which(wa.cv$lambda == wa.cv$lambda.min)])
-      }
-      loss(wa, as.matrix(target$x[target.valid.id, , drop = F]), target$y[target.valid.id], family)
-    })
-  } else { # valid.proportion == NULL, cross-validation
+  if (family != "binomial") {
     folds <- createFolds(target$y, valid.nfolds)
-    loss.cv <- t(sapply(1:valid.nfolds, function(i){
-      source.loss <- sapply(1:length(source), function(k){
-        if (lambda.detection == "lambda.1se") {
-          wa <- coef(cv.glmnet(x = as.matrix(rbind(target$x[-folds[[i]], , drop = F], source[[k]]$x)), y = c(target$y[-folds[[i]]], source[[k]]$y), family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, ...))
-        } else {
-          wa.cv <- cv.glmnet(x = as.matrix(rbind(target$x[-folds[[i]], , drop = F], source[[k]]$x)), y = c(target$y[-folds[[i]]], source[[k]]$y), family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, ...)
-          wa <- c(wa.cv$glmnet.fit$a0[which(wa.cv$lambda == wa.cv$lambda.min)], wa.cv$glmnet.fit$beta[, which(wa.cv$lambda == wa.cv$lambda.min)])
-        }
-        loss(wa, as.matrix(target$x[folds[[i]], , drop = F]), target$y[folds[[i]]], family)
-      })
-
-      if (lambda.detection == "lambda.1se") {
-        wa.target <- coef(cv.glmnet(x = as.matrix(target$x[-folds[[i]], , drop = F]), y = target$y[-folds[[i]]], family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, ...))
-      } else {
-        wa.cv <- cv.glmnet(x = as.matrix(target$x[-folds[[i]], , drop = F]), y = target$y[-folds[[i]]], family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, ...)
-        wa.target <- c(wa.cv$glmnet.fit$a0[which(wa.cv$lambda == wa.cv$lambda.min)], wa.cv$glmnet.fit$beta[, which(wa.cv$lambda == wa.cv$lambda.min)])
-      }
-      target.loss <- loss(wa.target, as.matrix(target$x[folds[[i]], , drop = F]), target$y[folds[[i]]], family)
-      c(source.loss, target.loss)
-    }))
-    source.loss <- colMeans(loss.cv)[1:(ncol(loss.cv)-1)]
-    target.valid.loss <- colMeans(loss.cv)[ncol(loss.cv)]
+  } else {
+    folds <- createFolds_binary(target$y, valid.nfolds)
   }
+  loss.cv <- t(sapply(1:valid.nfolds, function(i){
+    source.loss <- sapply(1:length(source), function(k){
+      if (lambda == "lambda.1se") {
+        while(T) {
+          wa <- try(coef(cv.glmnet(x = as.matrix(rbind(target$x[-folds[[i]], , drop = F], source[[k]]$x)), y = c(target$y[-folds[[i]]], source[[k]]$y), weights = c(target.weights[-folds[[i]]], source.weights[[k]]), family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, ...)), silent = TRUE)
+          # wa <- try(coef(cv.glmnet(x = as.matrix(source[[k]]$x), y = source[[k]]$y, family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, ...)), silent=TRUE)
+          if (class(wa) != "try-error") {
+            break
+          }
+        }
+      } else {
+        while(T) {
+          wa.cv <- try(cv.glmnet(x = as.matrix(rbind(target$x[-folds[[i]], , drop = F], source[[k]]$x)), y = c(target$y[-folds[[i]]], source[[k]]$y), weights = c(target.weights[-folds[[i]]], source.weights[[k]]), family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, ...), silent = TRUE)
+          # wa.cv <- try(cv.glmnet(x = as.matrix(source[[k]]$x), y = source[[k]]$y, family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, ...), silent=TRUE)
+          if (class(wa.cv) != "try-error") {
+            wa <- c(wa.cv$glmnet.fit$a0[which(wa.cv$lambda == wa.cv$lambda.min)], wa.cv$glmnet.fit$beta[, which(wa.cv$lambda == wa.cv$lambda.min)])
+            break
+          }
+        }
 
+      }
+      loss(wa, as.matrix(target$x[folds[[i]], , drop = F]), target$y[folds[[i]]], family)
+    })
 
+    if (lambda == "lambda.1se") {
+      while(T) {
+        wa.target <- try(coef(cv.glmnet(x = as.matrix(target$x[-folds[[i]], , drop = F]), y = target$y[-folds[[i]]], weights = target.weights[-folds[[i]]], family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, ...)), silent=TRUE)
+        if (class(wa.target) != "try-error") {
+          break
+        }
+      }
+    } else {
+      while(T) {
+        wa.cv <- try(cv.glmnet(x = as.matrix(target$x[-folds[[i]], , drop = F]), y = target$y[-folds[[i]]], weights = target.weights[-folds[[i]]], family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, ...), silent=TRUE)
+        if (class(wa.cv) != "try-error") {
+          wa.target <- c(wa.cv$glmnet.fit$a0[which(wa.cv$lambda == wa.cv$lambda.min)], wa.cv$glmnet.fit$beta[, which(wa.cv$lambda == wa.cv$lambda.min)])
+          break
+        }
+      }
 
+    }
+    target.loss <- loss(wa.target, as.matrix(target$x[folds[[i]], , drop = F]), target$y[folds[[i]]], family)
+    c(source.loss, target.loss)
+  }))
 
-  transfer.source.id <- which(source.loss <= (1+epsilon0)*target.valid.loss)
-  threshold <- (1+epsilon0)*target.valid.loss
+  source.loss <- colMeans(loss.cv)[1:(ncol(loss.cv)-1)]
+  target.valid.loss <- colMeans(loss.cv)[ncol(loss.cv)]
+  target.valid.loss.sd <- sd(loss.cv[, ncol(loss.cv)])
+
+  threshold <- target.valid.loss + C0*max(target.valid.loss.sd, 0.01)
+  transfer.source.id <- which(source.loss <= threshold)
   if (detection.info) {
     cat(paste0("Loss difference between source data and the threshold: (negative to be transferable)", "\n"))
     for (i in 1:length(source.loss)) {
@@ -132,14 +150,15 @@ source_detection <- function(target, source = NULL, family = c("gaussian", "bino
     }
     cat("\n")
     cat(paste("Source data set(s)", paste(transfer.source.id, collapse = ", "), "are transferable!\n"))
-
   }
 
   if(cores > 1) {
     stopImplicitCluster()
   }
 
-  obj <- list(transfer.source.id = transfer.source.id, source.loss = source.loss, target.valid.loss = target.valid.loss, epsilon0 = epsilon0, threshold = threshold)
+
+  obj <- list(transfer.source.id = transfer.source.id, source.loss = source.loss, target.valid.loss = target.valid.loss,
+              threshold = threshold)
   class(obj) <- "glmtrans_source_detection"
   return(obj)
 }

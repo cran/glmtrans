@@ -41,8 +41,6 @@ We provide an introductory demo of the usage for the \verb+glmtrans+ package. Th
 
   + [Plotting the source detection result](#plot)
 
-* [A Real Data Set: Micromass](#micromass)
-
 
 ```{r, echo = FALSE}
 library(formatR)
@@ -99,13 +97,13 @@ In this section, we show the user how to use the provided functions to fit the m
 
 ## Model fitting and prediction{#fitting}
 
-We first generate some logistic data through function `models`. For target data, we set the coefficient vector $\bm{\beta} = (0.5\cdot \bm{1}_s, \bm{0}_{p-s})$, where $p = 1000$ and $s = 15$. For $k$ in transferable source index set $\mathcal{A}$, let $\bm{w}^{(k)} = \bm{\beta} + h/p\cdot\bm{\mathscr{R}}_p^{(k)}$, where $h = 5$ and $\bm{\mathscr{R}}_p^{(k)}$ are $p$ independent Rademacher variables (being $-1$ or $1$ with equal probability) for any $k$. $\bm{\mathscr{R}}_p^{(k)}$ is independent with $\bm{\mathscr{R}}_p^{(k')}$ for any $k \neq k'$. The coefficient of non-transferable sources is set to be $\bm{\xi}+h/p\cdot \bm{\mathscr{R}}_p^{(k)}$. And $\bm{\xi}_{S'} = 0.5 \cdot \bm{1}_{2s}, \quad \bm{\xi}_{(S')^c} = \bm{0}_{p-2s}$,
-where $S' = S'_1 \cup S_2'$ and $|S_1'| = |S_2'| = s = 15$. $S_1' = \{s+1, \ldots, 2s\}$, and $S_2'$ is randomly sampled from $\{2s+1, \ldots, p\}$. We also add an intercept $0.5$. The generating procedure of each non-transferable source data is independent.  Predictors from target and source $\bm{x}^{(k)}_i \overset{i.i.d.}{\sim} N(\bm{0}, \bm{\Sigma})$, where $\bm{\Sigma} = (0.5^{|i-j|})_{p \times p}$. The target sample size $n_0 = 100$ and each source sample size $n_k = 150$ for any $k = 1, \ldots, K$. Let $K = 5$, $\mathcal{A} = \{1, 2, 3\}$.
+We first generate some logistic data through function `models`. For target data, we set the coefficient vector $\bm{\beta} = (0.5\cdot \bm{1}_s, \bm{0}_{p-s})$, where $p = 500$ and $s = 10$. For $k$ in transferable source index set $\mathcal{A}$, let $\bm{w}^{(k)} = \bm{\beta} + h/p\cdot\bm{\mathscr{R}}_p^{(k)}$, where $h = 5$ and $\bm{\mathscr{R}}_p^{(k)}$ are $p$ independent Rademacher variables (being $-1$ or $1$ with equal probability) for any $k$. $\bm{\mathscr{R}}_p^{(k)}$ is independent with $\bm{\mathscr{R}}_p^{(k')}$ for any $k \neq k'$. The coefficient of non-transferable sources is set to be $\bm{\xi}+h/p\cdot \bm{\mathscr{R}}_p^{(k)}$. And $\bm{\xi}_{S'} = 0.5 \cdot \bm{1}_{2s}, \quad \bm{\xi}_{(S')^c} = \bm{0}_{p-2s}$,
+where $S' = S'_1 \cup S_2'$ and $|S_1'| = |S_2'| = s = 10$. $S_1' = \{s+1, \ldots, 2s\}$, and $S_2'$ is randomly sampled from $\{2s+1, \ldots, p\}$. We also add an intercept $0.5$. The generating procedure of each non-transferable source data is independent. The target predictor $\bm{x}^{(k)}_i \overset{i.i.d.}{\sim} N(\bm{0}, \bm{\Sigma})$, where $\bm{\Sigma} = (0.9^{|i-j|})_{p \times p}$. The source predictor $\bm{x}^{(k)}_i \overset{i.i.d.}{\sim} t_4$. The target sample size $n_0 = 100$ and each source sample size $n_k = 100$ for any $k = 1, \ldots, K$. Let $K = 5$, $\mathcal{A} = \{1, 2, 3\}$.
 
 We generate the training data as follows.
 ```{r, tidy=TRUE, tidy.opts=list(width.cutoff=70)}
 set.seed(1, kind = "L'Ecuyer-CMRG")
-D.training <- models(family = "binomial", type = "all", Ka = 3, K = 5, n.target = 150, n.source = rep(150, 5))
+D.training <- models(family = "binomial", type = "all", cov.type = 2, Ka = 3, K = 5, s = 10, n.target = 100, n.source = rep(100, 5))
 ```
 
 Then suppose we know $\mathcal{A}$, let's fit an "oracle" GLM transfer learning model on the target data and source data in $\mathcal{A}$ by the oracle algorithm. We denote this procedure as Oralce-Trans-GLM.
@@ -148,7 +146,7 @@ fit.pooled <- glmtrans(target = D.training$target, source = D.training$source, f
 
 Finally, we compare the $\ell_2$-estimation errors of the target coefficient $\bm{\beta}$ by different methods.
 ```{r, tidy=TRUE, tidy.opts=list(width.cutoff=70), message=FALSE}
-beta <- c(0, rep(0.5, 15), rep(0, 1000-15))
+beta <- c(0, rep(0.5, 10), rep(0, 500-10))
 er <- numeric(4)
 names(er) <- c("Lasso", "Pooled-Trans-GLM", "Trans-GLM", "Oracle-Trans-GLM")
 er["Lasso"] <- sqrt(sum((coef(fit.lasso)-beta)^2))
@@ -170,33 +168,6 @@ plot(fit.detection)
 ```
 
 
-# A Real Data Set: Micromass{#micromass}
-
-This package includes a real-data set about bacterial categorization. The information about 9 genera of gram, including 12 positive and 8 negative bacterial species are available in the data set Micromass (@mahe2014automatic). There are 541 observations and 1300 variables in total. Each variable records some feature of the gram. The original data MicroMass is available on UCI machine learning repository (\url{https://archive.ics.uci.edu/ml/datasets/MicroMass}).
-
-In @tian2021transfer, 10 groups are constructed from the original 20 species and each group consists of two different species of gram. Here the data included is the preprocessed one. The data is a list of length 10, and each of the components is a group with two species. The list name records the species. After loading the package `glmtrans`, the transformed data set will be loaded as a list `micromass`.
-
-The list of species' names in each group:
-
-* "QBG.CRP-JNH.ZIJ"
-
-* "AUG.AEX-RTO.JFR"
-
-* "QWP.LRO-RTO.TQH"
-
-* "AUG.HSS-QWP.DRH"
-
-* "QBG.KGI-JNH.FLH"
-
-* "VVJ.KWJ-BUT.DNW"
-
-* "VVJ.KSF-BUT.TRH"
-
-* "NYV.VCE-EMD.FZO"
-
-* "NYV.XSY-EMD.WXC"
-
-* "BUT.BIK-BUT.YZE"
 
 
 # Reference

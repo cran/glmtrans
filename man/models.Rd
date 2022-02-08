@@ -7,12 +7,13 @@
 models(
   family = c("gaussian", "binomial", "poisson"),
   type = c("all", "source", "target"),
+  cov.type = 1,
   h = 5,
   K = 5,
-  n.target = 100,
-  n.source = rep(150, K),
-  s = 15,
-  p = 1000,
+  n.target = 200,
+  n.source = rep(100, K),
+  s = 5,
+  p = 500,
   Ka = K
 )
 }
@@ -24,7 +25,9 @@ models(
 \item "poisson": poisson distribution. When \code{family = "poisson"}, the input response in both \code{target} and \code{source} should be non-negative.
 }}
 
-\item{type}{the type of generated data. Can be "all", "source" or "target".
+\item{type}{the type of generated data. Can be "all", "source" or "target".}
+
+\item{cov.type}{the type of covariates. Can be 1 or 2 (numerical). If it equals to 1, the predictors will be generated from the distribution used in Section 4.1.1 (Ah-Trans-GLM) in the latest version of Tian, Y. and Feng, Y., 2021. If it equals to 2, the predictors will be generated from the distribution used in Section 4.1.2 (When transferable sources are unknown).
 \itemize{
 \item "all": generate a list with a target data set of size \code{n.target} and K source data set of size \code{n.source}.
 \item "source": generate a list with K source data set of size \code{n.source}.
@@ -57,7 +60,7 @@ a list of data sets which depend on the value of \code{type}.
 Generate data from Gaussian, logistic and Poisson models used in the simulation part of Tian, Y. and Feng, Y., 2021.
 }
 \examples{
-set.seed(1, kind = "L'Ecuyer-CMRG")
+set.seed(0, kind = "L'Ecuyer-CMRG")
 
 D.all <- models("binomial", type = "all")
 D.target <- models("binomial", type = "target")
@@ -65,7 +68,7 @@ D.source <- models("binomial", type = "source")
 
 }
 \references{
-Tian, Y. and Feng, Y., 2021. \emph{Transfer learning with high-dimensional generalized linear models. Submitted.}
+Tian, Y. and Feng, Y., 2021. \emph{Transfer Learning under High-dimensional Generalized Linear Models. arXiv preprint arXiv:2105.14328.}
 }
 \seealso{
 \code{\link{glmtrans}}.

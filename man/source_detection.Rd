@@ -12,12 +12,13 @@ source_detection(
   standardize = TRUE,
   intercept = TRUE,
   nfolds = 10,
-  epsilon0 = 0.01,
   cores = 1,
-  valid.proportion = NULL,
   valid.nfolds = 3,
-  lambda.detection = "lambda.min",
+  lambda = "lambda.1se",
   detection.info = TRUE,
+  target.weights = NULL,
+  source.weights = NULL,
+  C0 = 2,
   ...
 )
 }
@@ -41,21 +42,23 @@ source_detection(
 
 \item{nfolds}{the number of folds. Used in the cross-validation for GLM elastic net fitting procedure. Default = 10. Smallest value allowable is \code{nfolds = 3}.}
 
-\item{epsilon0}{a positive number. Useful only when \code{transfer.source.id = "auto"}. The threshold to determine transferability will be set as \eqn{(1+epsilon0)*(validation (or cross-validation) loss of target data)}. Default = 0.01. For details, refer to Algorithm 3 in Tian, Y. and Feng, Y., 2021.}
-
 \item{cores}{the number of cores used for parallel computing. Default = 1.}
 
-\item{valid.proportion}{the proportion of target data to be used as validation data when detecting transferable sources. Useful only when \code{transfer.source.id = "auto"}. Default = \code{NULL}, meaning that the cross-validation will be applied.}
+\item{valid.nfolds}{the number of folds used in cross-validation procedure when detecting transferable sources. Useful only when \code{transfer.source.id = "auto"}. Default = 3.}
 
-\item{valid.nfolds}{the number of folds used in cross-validation procedure when detecting transferable sources. Useful only when \code{transfer.source.id = "auto"} and \code{valid.proportion = NULL}. Default = 3.}
+\item{lambda}{lambda (the penalty parameter) used in the transferable source detection algorithm. Can be either "lambda.min" or "lambda.1se". Default = "lambda.1se".}
 
-\item{lambda.detection}{lambda (the penalty parameter) used in the transferable source detection algorithm. Can be either "lambda.min" or "lambda.1se". Default = "lambda.min".
+\item{detection.info}{the logistic flag indicating whether to print detection information or not. Useful only when \code{transfer.source.id = "auto"}. Default = \code{TURE}.}
+
+\item{target.weights}{weight vector for each target instance. Should be a vector with the same length of target response. Default = \code{NULL}, which makes all instances equal-weighted.}
+
+\item{source.weights}{a list of weight vectors for the instances from each source. Should be a list with the same length of the number of sources. Default = \code{NULL}, which makes all instances equal-weighted.}
+
+\item{C0}{the constant used in the transferable source detection algorithm. See Algorithm 2 in Tian, Y. and Feng, Y., 2021. Default = 2.
 \itemize{
 \item "lambda.min": value of lambda that gives minimum mean cross-validated error in the sequence of lambda.
 \item "lambda.1se": largest value of lambda such that error is within 1 standard error of the minimum.
 }}
-
-\item{detection.info}{the logistic flag indicating whether to print detection information or not. Useful only when \code{transfer.source.id = "auto"}. Default = \code{TURE}.}
 
 \item{...}{additional arguments.}
 }
@@ -63,7 +66,6 @@ source_detection(
 An object with S3 class \code{"glmtrans_source_detection"}.
 \item{target.valid.loss}{the validation (or cross-validation) loss on target data. Only available when \code{transfer.source.id = "auto"}.}
 \item{source.loss}{the loss on each source data. Only available when \code{transfer.source.id = "auto"}.}
-\item{epsilon0}{the threshold to determine transferability will be set as \eqn{(1+epsilon0)*loss of validation (cv) target data}. Only available when \code{transfer.source.id = "auto"}.}
 \item{threshold}{the threshold to determine transferability. Only available when \code{transfer.source.id = "auto"}.}
 }
 \description{
@@ -73,30 +75,30 @@ Detect transferable sources from multiple source data sets. Currently can deal w
 \code{source.loss} and \code{threshold} outputed by \code{source_detection} can be visualized by function \code{plot.glmtrans}.
 }
 \examples{
-set.seed(1, kind = "L'Ecuyer-CMRG")
+set.seed(0, kind = "L'Ecuyer-CMRG")
 
 # study the linear model
-D.training <- models("gaussian", type = "all", K = 2, p = 500, Ka = 1)
+D.training <- models("gaussian", type = "all", K = 2, p = 500, Ka = 1, n.target = 100, cov.type = 2)
 detection.gaussian <- source_detection(D.training$target, D.training$source)
 detection.gaussian$transferable.source.id
 
 \donttest{
 # study the logistic model
-D.training <- models("binomial", type = "all", p = 500)
+D.training <- models("binomial", type = "all", K = 2, p = 500, Ka = 1, n.target = 100, cov.type = 2)
 detection.binomial <- source_detection(D.training$target, D.training$source,
 family = "binomial", cores = 2)
 detection.binomial$transferable.source.id
 
 
 # study Poisson model
-D.training <- models("poisson", type = "all", p = 200)
+D.training <- models("poisson", type = "all", K = 2, p = 500, Ka = 1, n.target = 100, cov.type = 2)
 detection.poisson <- source_detection(D.training$target, D.training$source,
 family = "poisson", cores = 2)
 detection.poisson$transferable.source.id
 }
 }
 \references{
-Tian, Y. and Feng, Y., 2021. \emph{Transfer learning with high-dimensional generalized linear models. Submitted.}
+Tian, Y. and Feng, Y., 2021. \emph{Transfer Learning under High-dimensional Generalized Linear Models. arXiv preprint arXiv:2105.14328.}
 
 Li, S., Cai, T.T. and Li, H., 2020. \emph{Transfer learning for high-dimensional linear regression: Prediction, estimation, and minimax optimality. arXiv preprint arXiv:2006.10593.}
 
