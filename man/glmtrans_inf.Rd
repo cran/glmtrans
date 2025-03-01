@@ -71,11 +71,11 @@ family = "binomial", beta.hat = fit.binomial$beta, cores = 2)
 }
 }
 \references{
-Tian, Y. and Feng, Y., 2021. \emph{Transfer Learning under High-dimensional Generalized Linear Models. arXiv preprint arXiv:2105.14328.}
+Tian, Y., & Feng, Y. (2023). \emph{Transfer learning under high-dimensional generalized linear models. Journal of the American Statistical Association, 118(544), 2684-2697.}
 
-Van de Geer, S., Bühlmann, P., Ritov, Y.A. and Dezeure, R., 2014. \emph{On asymptotically optimal confidence regions and tests for high-dimensional models. The Annals of Statistics, 42(3), pp.1166-1202.}
+Van de Geer, S., Bühlmann, P., Ritov, Y.A. & Dezeure, R. (2014). \emph{On asymptotically optimal confidence regions and tests for high-dimensional models. The Annals of Statistics, 42(3), pp.1166-1202.}
 
-Dezeure, R., Bühlmann, P., Meier, L. and Meinshausen, N., 2015. \emph{High-dimensional inference: confidence intervals, p-values and R-software hdi. Statistical science, pp.533-558.}
+Dezeure, R., Bühlmann, P., Meier, L. & Meinshausen, N. (2015). \emph{High-dimensional inference: confidence intervals, p-values and R-software hdi. Statistical science, pp.533-558.}
 }
 \seealso{
 \code{\link{glmtrans}}.

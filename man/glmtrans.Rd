@@ -17,6 +17,7 @@ glmtrans(
   valid.proportion = NULL,
   valid.nfolds = 3,
   lambda = c(transfer = "lambda.1se", debias = "lambda.min", detection = "lambda.1se"),
+  lambda.seq = list(transfer = NULL, debias = NULL, detection = NULL),
   detection.info = TRUE,
   target.weights = NULL,
   source.weights = NULL,
@@ -57,11 +58,13 @@ glmtrans(
 
 \item{valid.nfolds}{the number of folds used in cross-validation procedure when detecting transferable sources. Useful only when \code{transfer.source.id = "auto"} and \code{valid.proportion = NULL}. Default = 3.}
 
-\item{lambda}{a vector indicating the choice of lambdas in transferring, debiasing and detection steps. Should be a vector with names "transfer", "debias", and "detection", each component of which can be either "lambda.min" or "lambda.1se". Component \code{transfer} is the lambda (the penalty parameter) used in transferrring step. Component \code{debias} is the lambda used in debiasing step. Component \code{detection} is the lambda used in the transferable source detection algorithm. Default choice of \code{lambda.transfer} and \code{lambda.detection} are "lambda.1se", while default \code{lambda.debias} = "lambda.min". If the user wants to change the default setting, input a vector with corresponding \code{lambda.transfer}/\code{lambda.debias}/\code{lambda.detection} names and corresponding values. Examples: lambda = list(transfer = "lambda.min", debias = "lambda.1se"); lambda = list(transfer = "lambda.min", detection = "lambda.min").
+\item{lambda}{a vector indicating the choice of lambdas in transferring, debiasing and detection steps. Should be a vector with names "transfer", "debias", and "detection", each component of which can be either "lambda.min" or "lambda.1se". Component \code{transfer} is the lambda (the penalty parameter) used in transferrring step. Component \code{debias} is the lambda used in debiasing step. Component \code{detection} is the lambda used in the transferable source detection algorithm. Default choice of \code{lambda.transfer} and \code{lambda.detection} are "lambda.1se", while default \code{lambda.debias} = "lambda.min". If the user wants to change the default setting, input a vector with corresponding \code{lambda.transfer}/\code{lambda.debias}/\code{lambda.detection} names and corresponding values. Examples: lambda = list(transfer = "lambda.1se", debias = "lambda.min", detection = "lambda.1se"); lambda = list(transfer = 1, debias = 0.5, detection = 1).
 \itemize{
 \item "lambda.min": value of lambda that gives minimum mean cross-validated error in the sequence of lambda.
 \item "lambda.1se": largest value of lambda such that error is within 1 standard error of the minimum.
 }}
+
+\item{lambda.seq}{the sequence of lambda candidates used in the algorithm. Should be a list of three vectors with names "transfer", "debias", and "detection". Default = list(transfer = NULL, debias = NULL, detection = NULL). "NULL" means the algorithm will determine the sequence automatically, based on the same method used in \code{cv.glmnet}.}
 
 \item{detection.info}{the logistic flag indicating whether to print detection information or not. Useful only when \code{transfer.source.id = "auto"}. Default = \code{TURE}.}
 
@@ -69,7 +72,7 @@ glmtrans(
 
 \item{source.weights}{a list of weight vectors for the instances from each source. Should be a list with the same length of the number of sources. Default = \code{NULL}, which makes all instances equal-weighted.}
 
-\item{C0}{the constant used in the transferable source detection algorithm. See Algorithm 2 in Tian, Y. and Feng, Y., 2021. Default = 2.}
+\item{C0}{the constant used in the transferable source detection algorithm. See Algorithm 2 in Tian, Y. & Feng, Y. (2023). Default = 2.}
 
 \item{...}{additional arguments.}
 }
@@ -77,14 +80,14 @@ glmtrans(
 An object with S3 class \code{"glmtrans"}.
 \item{beta}{the estimated coefficient vector.}
 \item{family}{the response type.}
-\item{transfer.source.id}{the transferable souce index. If in the input, \code{transfer.source.id = 1:length(source)} or \code{transfer.source.id = "all"}, then the outputed \code{transfer.source.id = 1:length(source)}. If the inputed \code{transfer.source.id = "auto"}, only transferable source detected by the algorithm will be outputed.}
+\item{transfer.source.id}{the transferable source index. If in the input, \code{transfer.source.id = 1:length(source)} or \code{transfer.source.id = "all"}, then the outputed \code{transfer.source.id = 1:length(source)}. If the inputed \code{transfer.source.id = "auto"}, only transferable source detected by the algorithm will be outputed.}
 \item{fitting.list}{a list of other parameters of the fitted model.}
 \itemize{
-\item{w_a}{the estimator obtained from the transferring step.}
-\item{delta_a}{the estimator obtained from the debiasing step.}
-\item{target.valid.loss}{the validation (or cross-validation) loss on target data. Only available when \code{transfer.source.id = "auto"}.}
-\item{source.loss}{the loss on each source data. Only available when \code{transfer.source.id = "auto"}.}
-\item{threshold}{the threshold to determine transferability. Only available when \code{transfer.source.id = "auto"}.}
+\item \code{w_a}: the estimator obtained from the transferring step.
+\item \code{delta_a}: the estimator obtained from the debiasing step.
+\item \code{target.valid.loss}: the validation (or cross-validation) loss on target data. Only available when \code{transfer.source.id = "auto"}.
+\item \code{source.loss}: the loss on each source data. Only available when \code{transfer.source.id = "auto"}.
+\item \code{threshold}: the threshold to determine transferability. Only available when \code{transfer.source.id = "auto"}.
 }
 }
 \description{
@@ -95,7 +98,7 @@ set.seed(0, kind = "L'Ecuyer-CMRG")
 
 # fit a linear regression model
 D.training <- models("gaussian", type = "all", n.target = 100, K = 2, p = 500)
-D.test <- models("gaussian", type = "target", n.target = 100, p = 500)
+D.test <- models("gaussian", type = "target", n.target = 500, p = 500)
 fit.gaussian <- glmtrans(D.training$target, D.training$source)
 y.pred.glmtrans <- predict(fit.gaussian, D.test$target$x)
 
@@ -110,7 +113,7 @@ mean((y.pred.lasso - D.test$target$y)^2)
 \donttest{
 # fit a logistic regression model
 D.training <- models("binomial", type = "all", n.target = 100, K = 2, p = 500)
-D.test <- models("binomial", type = "target", n.target = 100, p = 500)
+D.test <- models("binomial", type = "target", n.target = 500, p = 500)
 fit.binomial <- glmtrans(D.training$target, D.training$source, family = "binomial")
 y.pred.glmtrans <- predict(fit.binomial, D.test$target$x, type = "class")
 
@@ -125,7 +128,7 @@ mean(y.pred.lasso != D.test$target$y)
 
 # fit a Poisson regression model
 D.training <- models("poisson", type = "all", n.target = 100, K = 2, p = 500)
-D.test <- models("poisson", type = "target", n.target = 100, p = 500)
+D.test <- models("poisson", type = "target", n.target = 500, p = 500)
 fit.poisson <- glmtrans(D.training$target, D.training$source, family = "poisson")
 y.pred.glmtrans <- predict(fit.poisson, D.test$target$x, type = "response")
 
@@ -138,15 +141,15 @@ mean((y.pred.lasso - D.test$target$y)^2)
 }
 }
 \references{
-Tian, Y. and Feng, Y., 2021. \emph{Transfer Learning under High-dimensional Generalized Linear Models. arXiv preprint arXiv:2105.14328.}
+Tian, Y., & Feng, Y. (2023). \emph{Transfer learning under high-dimensional generalized linear models. Journal of the American Statistical Association, 118(544), 2684-2697.}
 
-Li, S., Cai, T.T. and Li, H., 2020. \emph{Transfer learning for high-dimensional linear regression: Prediction, estimation, and minimax optimality. arXiv preprint arXiv:2006.10593.}
+Li, S., Cai, T.T. & Li, H. (2020). \emph{Transfer learning for high-dimensional linear regression: Prediction, estimation, and minimax optimality. arXiv preprint arXiv:2006.10593.}
 
-Friedman, J., Hastie, T. and Tibshirani, R., 2010. \emph{Regularization paths for generalized linear models via coordinate descent. Journal of statistical software, 33(1), p.1.}
+Friedman, J., Hastie, T. & Tibshirani, R. (2010). \emph{Regularization paths for generalized linear models via coordinate descent. Journal of statistical software, 33(1), p.1.}
 
-Zou, H. and Hastie, T., 2005. \emph{Regularization and variable selection via the elastic net. Journal of the royal statistical society: series B (statistical methodology), 67(2), pp.301-320.}
+Zou, H. & Hastie, T. (2005). \emph{Regularization and variable selection via the elastic net. Journal of the royal statistical society: series B (statistical methodology), 67(2), pp.301-320.}
 
-Tibshirani, R., 1996. \emph{Regression shrinkage and selection via the lasso. Journal of the Royal Statistical Society: Series B (Methodological), 58(1), pp.267-288.}
+Tibshirani, R. (1996). \emph{Regression shrinkage and selection via the lasso. Journal of the Royal Statistical Society: Series B (Methodological), 58(1), pp.267-288.}
 }
 \seealso{
 \code{\link{predict.glmtrans}}, \code{\link{source_detection}}, \code{\link{models}}, \code{\link{plot.glmtrans}}, \code{\link[glmnet]{cv.glmnet}}, \code{\link[glmnet]{glmnet}}.

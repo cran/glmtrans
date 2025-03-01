@@ -15,6 +15,7 @@ source_detection(
   cores = 1,
   valid.nfolds = 3,
   lambda = "lambda.1se",
+  lambda.seq = NULL,
   detection.info = TRUE,
   target.weights = NULL,
   source.weights = NULL,
@@ -48,6 +49,8 @@ source_detection(
 
 \item{lambda}{lambda (the penalty parameter) used in the transferable source detection algorithm. Can be either "lambda.min" or "lambda.1se". Default = "lambda.1se".}
 
+\item{lambda.seq}{the sequence of lambda candidates used in the algorithm. Should be a vector of numerical values. Default = NULL, which means the algorithm will determine the sequence automatically, based on the same method used in \code{cv.glmnet}.}
+
 \item{detection.info}{the logistic flag indicating whether to print detection information or not. Useful only when \code{transfer.source.id = "auto"}. Default = \code{TURE}.}
 
 \item{target.weights}{weight vector for each target instance. Should be a vector with the same length of target response. Default = \code{NULL}, which makes all instances equal-weighted.}
@@ -64,8 +67,9 @@ source_detection(
 }
 \value{
 An object with S3 class \code{"glmtrans_source_detection"}.
-\item{target.valid.loss}{the validation (or cross-validation) loss on target data. Only available when \code{transfer.source.id = "auto"}.}
+\item{transfer.source.id}{the index of transferable sources.}
 \item{source.loss}{the loss on each source data. Only available when \code{transfer.source.id = "auto"}.}
+\item{target.valid.loss}{the validation (or cross-validation) loss on target data. Only available when \code{transfer.source.id = "auto"}.}
 \item{threshold}{the threshold to determine transferability. Only available when \code{transfer.source.id = "auto"}.}
 }
 \description{
@@ -80,33 +84,33 @@ set.seed(0, kind = "L'Ecuyer-CMRG")
 # study the linear model
 D.training <- models("gaussian", type = "all", K = 2, p = 500, Ka = 1, n.target = 100, cov.type = 2)
 detection.gaussian <- source_detection(D.training$target, D.training$source)
-detection.gaussian$transferable.source.id
+detection.gaussian$transfer.source.id
 
 \donttest{
 # study the logistic model
 D.training <- models("binomial", type = "all", K = 2, p = 500, Ka = 1, n.target = 100, cov.type = 2)
 detection.binomial <- source_detection(D.training$target, D.training$source,
 family = "binomial", cores = 2)
-detection.binomial$transferable.source.id
+detection.binomial$transfer.source.id
 
 
 # study Poisson model
 D.training <- models("poisson", type = "all", K = 2, p = 500, Ka = 1, n.target = 100, cov.type = 2)
 detection.poisson <- source_detection(D.training$target, D.training$source,
 family = "poisson", cores = 2)
-detection.poisson$transferable.source.id
+detection.poisson$transfer.source.id
 }
 }
 \references{
-Tian, Y. and Feng, Y., 2021. \emph{Transfer Learning under High-dimensional Generalized Linear Models. arXiv preprint arXiv:2105.14328.}
+Tian, Y., & Feng, Y. (2023). \emph{Transfer learning under high-dimensional generalized linear models. Journal of the American Statistical Association, 118(544), 2684-2697.}
 
-Li, S., Cai, T.T. and Li, H., 2020. \emph{Transfer learning for high-dimensional linear regression: Prediction, estimation, and minimax optimality. arXiv preprint arXiv:2006.10593.}
+Li, S., Cai, T.T. & Li, H., (2020). \emph{Transfer learning for high-dimensional linear regression: Prediction, estimation, and minimax optimality. arXiv preprint arXiv:2006.10593.}
 
-Friedman, J., Hastie, T. and Tibshirani, R., 2010. \emph{Regularization paths for generalized linear models via coordinate descent. Journal of statistical software, 33(1), p.1.}
+Friedman, J., Hastie, T. & Tibshirani, R., (2010). \emph{Regularization paths for generalized linear models via coordinate descent. Journal of statistical software, 33(1), p.1.}
 
-Zou, H. and Hastie, T., 2005. \emph{Regularization and variable selection via the elastic net. Journal of the royal statistical society: series B (statistical methodology), 67(2), pp.301-320.}
+Zou, H. & Hastie, T., (2005). \emph{Regularization and variable selection via the elastic net. Journal of the royal statistical society: series B (statistical methodology), 67(2), pp.301-320.}
 
-Tibshirani, R., 1996. \emph{Regression shrinkage and selection via the lasso. Journal of the Royal Statistical Society: Series B (Methodological), 58(1), pp.267-288.}
+Tibshirani, R., (1996). \emph{Regression shrinkage and selection via the lasso. Journal of the Royal Statistical Society: Series B (Methodological), 58(1), pp.267-288.}
 }
 \seealso{
 \code{\link{glmtrans}}, \code{\link{predict.glmtrans}}, \code{\link{models}}, \code{\link{plot.glmtrans}}, \code{\link[glmnet]{cv.glmnet}}, \code{\link[glmnet]{glmnet}}.

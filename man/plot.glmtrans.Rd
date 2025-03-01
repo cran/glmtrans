@@ -35,7 +35,7 @@ plot(detection.gaussian)
 
 }
 \references{
-Tian, Y. and Feng, Y., 2021. \emph{Transfer learning with high-dimensional generalized linear models. Submitted.}
+Tian, Y., & Feng, Y. (2023). \emph{Transfer learning under high-dimensional generalized linear models. Journal of the American Statistical Association, 118(544), 2684-2697.}
 }
 \seealso{
 \code{\link{glmtrans}}, \code{\link{source_detection}}, \code{\link[ggplot2]{ggplot}}.

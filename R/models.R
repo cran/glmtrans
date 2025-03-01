@@ -1,6 +1,6 @@
 #' Generate data from Gaussian, logistic and Poisson models.
 #'
-#' Generate data from Gaussian, logistic and Poisson models used in the simulation part of Tian, Y. and Feng, Y., 2021.
+#' Generate data from Gaussian, logistic and Poisson models used in the simulation part of Tian, Y., & Feng, Y. (2023).
 #' @export
 #' @param family response type. Can be "gaussian", "binomial" or "poisson". Default = "gaussian".
 #' \itemize{
@@ -9,13 +9,13 @@
 #' \item "poisson": poisson distribution. When \code{family = "poisson"}, the input response in both \code{target} and \code{source} should be non-negative.
 #' }
 #' @param type the type of generated data. Can be "all", "source" or "target".
-#' @param cov.type the type of covariates. Can be 1 or 2 (numerical). If it equals to 1, the predictors will be generated from the distribution used in Section 4.1.1 (Ah-Trans-GLM) in the latest version of Tian, Y. and Feng, Y., 2021. If it equals to 2, the predictors will be generated from the distribution used in Section 4.1.2 (When transferable sources are unknown).
 #' \itemize{
 #' \item "all": generate a list with a target data set of size \code{n.target} and K source data set of size \code{n.source}.
 #' \item "source": generate a list with K source data set of size \code{n.source}.
 #' \item "target": generate a list with a target data set of size \code{n.target}.
 #' }
-#' @param h measures the deviation (\eqn{l_1}-norm) of transferable source coefficient from the target coefficient.
+#' @param cov.type the type of covariates. Can be 1 or 2 (numerical). If it equals to 1, the predictors will be generated from the distribution used in Section 4.1.1 (Ah-Trans-GLM) in the latest version of Tian, Y., & Feng, Y. (2023). If it equals to 2, the predictors will be generated from the distribution used in Section 4.1.2 (When transferable sources are unknown).
+#' @param h measures the deviation (\eqn{l_1}-norm) of transferable source coefficient from the target coefficient. Default = 5.
 #' @param K the number of source data sets. Default = 5.
 #' @param n.target the sample size of target data. Should be a positive integer. Default = 100.
 #' @param n.source the sample size of each source data. Should be a vector of length \code{K}. Default is a \code{K}-vector with all elements 150.
@@ -30,7 +30,7 @@
 #' }
 #' @seealso \code{\link{glmtrans}}.
 #' @references
-#' Tian, Y. and Feng, Y., 2021. \emph{Transfer Learning under High-dimensional Generalized Linear Models. arXiv preprint arXiv:2105.14328.}
+#' Tian, Y., & Feng, Y. (2023). \emph{Transfer learning under high-dimensional generalized linear models. Journal of the American Statistical Association, 118(544), 2684-2697.}
 #' @examples
 #' set.seed(0, kind = "L'Ecuyer-CMRG")
 #'

@@ -7,15 +7,15 @@
 #' @param type the type of prediction. Default = "link".
 #' @param ... additional arguments.
 #' \itemize{
-#' \item{"link"}{the linear predictors. When \code{family = "gaussian"}, it is the same as the predicited responses.}
-#' \item{"response"}{gives the predicited probabilities when \code{family = "binomial"}, the predicited mean when \code{family = "poisson"}, and the predicited responses when \code{family = "gaussian"}.}
-#' \item{"class"}{the predicited 0/1 responses for lositic distribution. Applies only when \code{family = "binomial"}.}
-#' \item{"integral response"}{the predicited integral response for Poisson distribution. Applies only when \code{family = "poisson"}.}
+#' \item "link": the linear predictors. When \code{family = "gaussian"}, it is the same as the predicited responses.
+#' \item "response": gives the predicited probabilities when \code{family = "binomial"}, the predicited mean when \code{family = "poisson"}, and the predicited responses when \code{family = "gaussian"}.
+#' \item "class": the predicited 0/1 responses for lositic distribution. Applies only when \code{family = "binomial"}.
+#' \item "integral response": the predicited integral response for Poisson distribution. Applies only when \code{family = "poisson"}.
 #' }
 #' @return the predicted result on new data, which depends on \code{type}.
 #' @seealso \code{\link{glmtrans}}.
 #' @references
-#' Tian, Y. and Feng, Y., 2021. \emph{Transfer learning with high-dimensional generalized linear models. Submitted.}
+#' Tian, Y., & Feng, Y. (2023). \emph{Transfer learning under high-dimensional generalized linear models. Journal of the American Statistical Association, 118(544), 2684-2697.}
 #'
 #' @examples
 #' set.seed(1, kind = "L'Ecuyer-CMRG")

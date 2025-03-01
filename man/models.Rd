@@ -25,16 +25,16 @@ models(
 \item "poisson": poisson distribution. When \code{family = "poisson"}, the input response in both \code{target} and \code{source} should be non-negative.
 }}
 
-\item{type}{the type of generated data. Can be "all", "source" or "target".}
-
-\item{cov.type}{the type of covariates. Can be 1 or 2 (numerical). If it equals to 1, the predictors will be generated from the distribution used in Section 4.1.1 (Ah-Trans-GLM) in the latest version of Tian, Y. and Feng, Y., 2021. If it equals to 2, the predictors will be generated from the distribution used in Section 4.1.2 (When transferable sources are unknown).
+\item{type}{the type of generated data. Can be "all", "source" or "target".
 \itemize{
 \item "all": generate a list with a target data set of size \code{n.target} and K source data set of size \code{n.source}.
 \item "source": generate a list with K source data set of size \code{n.source}.
 \item "target": generate a list with a target data set of size \code{n.target}.
 }}
 
-\item{h}{measures the deviation (\eqn{l_1}-norm) of transferable source coefficient from the target coefficient.}
+\item{cov.type}{the type of covariates. Can be 1 or 2 (numerical). If it equals to 1, the predictors will be generated from the distribution used in Section 4.1.1 (Ah-Trans-GLM) in the latest version of Tian, Y., & Feng, Y. (2023). If it equals to 2, the predictors will be generated from the distribution used in Section 4.1.2 (When transferable sources are unknown).}
+
+\item{h}{measures the deviation (\eqn{l_1}-norm) of transferable source coefficient from the target coefficient. Default = 5.}
 
 \item{K}{the number of source data sets. Default = 5.}
 
@@ -57,7 +57,7 @@ a list of data sets which depend on the value of \code{type}.
 }
 }
 \description{
-Generate data from Gaussian, logistic and Poisson models used in the simulation part of Tian, Y. and Feng, Y., 2021.
+Generate data from Gaussian, logistic and Poisson models used in the simulation part of Tian, Y., & Feng, Y. (2023).
 }
 \examples{
 set.seed(0, kind = "L'Ecuyer-CMRG")
@@ -68,7 +68,7 @@ D.source <- models("binomial", type = "source")
 
 }
 \references{
-Tian, Y. and Feng, Y., 2021. \emph{Transfer Learning under High-dimensional Generalized Linear Models. arXiv preprint arXiv:2105.14328.}
+Tian, Y., & Feng, Y. (2023). \emph{Transfer learning under high-dimensional generalized linear models. Journal of the American Statistical Association, 118(544), 2684-2697.}
 }
 \seealso{
 \code{\link{glmtrans}}.

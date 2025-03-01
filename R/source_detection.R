@@ -17,6 +17,7 @@
 #' @param cores the number of cores used for parallel computing. Default = 1.
 #' @param valid.nfolds the number of folds used in cross-validation procedure when detecting transferable sources. Useful only when \code{transfer.source.id = "auto"}. Default = 3.
 #' @param lambda lambda (the penalty parameter) used in the transferable source detection algorithm. Can be either "lambda.min" or "lambda.1se". Default = "lambda.1se".
+#' @param lambda.seq the sequence of lambda candidates used in the algorithm. Should be a vector of numerical values. Default = NULL, which means the algorithm will determine the sequence automatically, based on the same method used in \code{cv.glmnet}.
 #' @param target.weights weight vector for each target instance. Should be a vector with the same length of target response. Default = \code{NULL}, which makes all instances equal-weighted.
 #' @param source.weights a list of weight vectors for the instances from each source. Should be a list with the same length of the number of sources. Default = \code{NULL}, which makes all instances equal-weighted.
 #' @param C0 the constant used in the transferable source detection algorithm. See Algorithm 2 in Tian, Y. and Feng, Y., 2021. Default = 2.
@@ -27,21 +28,22 @@
 #' @param detection.info the logistic flag indicating whether to print detection information or not. Useful only when \code{transfer.source.id = "auto"}. Default = \code{TURE}.
 #' @param ... additional arguments.
 #' @return An object with S3 class \code{"glmtrans_source_detection"}.
-#' \item{target.valid.loss}{the validation (or cross-validation) loss on target data. Only available when \code{transfer.source.id = "auto"}.}
+#' \item{transfer.source.id}{the index of transferable sources.}
 #' \item{source.loss}{the loss on each source data. Only available when \code{transfer.source.id = "auto"}.}
+#' \item{target.valid.loss}{the validation (or cross-validation) loss on target data. Only available when \code{transfer.source.id = "auto"}.}
 #' \item{threshold}{the threshold to determine transferability. Only available when \code{transfer.source.id = "auto"}.}
 #' @seealso \code{\link{glmtrans}}, \code{\link{predict.glmtrans}}, \code{\link{models}}, \code{\link{plot.glmtrans}}, \code{\link[glmnet]{cv.glmnet}}, \code{\link[glmnet]{glmnet}}.
 #' @note \code{source.loss} and \code{threshold} outputed by \code{source_detection} can be visualized by function \code{plot.glmtrans}.
 #' @references
-#' Tian, Y. and Feng, Y., 2021. \emph{Transfer Learning under High-dimensional Generalized Linear Models. arXiv preprint arXiv:2105.14328.}
+#' Tian, Y., & Feng, Y. (2023). \emph{Transfer learning under high-dimensional generalized linear models. Journal of the American Statistical Association, 118(544), 2684-2697.}
 #'
-#' Li, S., Cai, T.T. and Li, H., 2020. \emph{Transfer learning for high-dimensional linear regression: Prediction, estimation, and minimax optimality. arXiv preprint arXiv:2006.10593.}
+#' Li, S., Cai, T.T. & Li, H., (2020). \emph{Transfer learning for high-dimensional linear regression: Prediction, estimation, and minimax optimality. arXiv preprint arXiv:2006.10593.}
 #'
-#' Friedman, J., Hastie, T. and Tibshirani, R., 2010. \emph{Regularization paths for generalized linear models via coordinate descent. Journal of statistical software, 33(1), p.1.}
+#' Friedman, J., Hastie, T. & Tibshirani, R., (2010). \emph{Regularization paths for generalized linear models via coordinate descent. Journal of statistical software, 33(1), p.1.}
 #'
-#' Zou, H. and Hastie, T., 2005. \emph{Regularization and variable selection via the elastic net. Journal of the royal statistical society: series B (statistical methodology), 67(2), pp.301-320.}
+#' Zou, H. & Hastie, T., (2005). \emph{Regularization and variable selection via the elastic net. Journal of the royal statistical society: series B (statistical methodology), 67(2), pp.301-320.}
 #'
-#' Tibshirani, R., 1996. \emph{Regression shrinkage and selection via the lasso. Journal of the Royal Statistical Society: Series B (Methodological), 58(1), pp.267-288.}
+#' Tibshirani, R., (1996). \emph{Regression shrinkage and selection via the lasso. Journal of the Royal Statistical Society: Series B (Methodological), 58(1), pp.267-288.}
 #'
 #' @examples
 #' set.seed(0, kind = "L'Ecuyer-CMRG")
@@ -49,25 +51,25 @@
 #' # study the linear model
 #' D.training <- models("gaussian", type = "all", K = 2, p = 500, Ka = 1, n.target = 100, cov.type = 2)
 #' detection.gaussian <- source_detection(D.training$target, D.training$source)
-#' detection.gaussian$transferable.source.id
+#' detection.gaussian$transfer.source.id
 #'
 #' \donttest{
 #' # study the logistic model
 #' D.training <- models("binomial", type = "all", K = 2, p = 500, Ka = 1, n.target = 100, cov.type = 2)
 #' detection.binomial <- source_detection(D.training$target, D.training$source,
 #' family = "binomial", cores = 2)
-#' detection.binomial$transferable.source.id
+#' detection.binomial$transfer.source.id
 #'
 #'
 #' # study Poisson model
 #' D.training <- models("poisson", type = "all", K = 2, p = 500, Ka = 1, n.target = 100, cov.type = 2)
 #' detection.poisson <- source_detection(D.training$target, D.training$source,
 #' family = "poisson", cores = 2)
-#' detection.poisson$transferable.source.id
+#' detection.poisson$transfer.source.id
 #' }
 source_detection <- function(target, source = NULL, family = c("gaussian", "binomial", "poisson"), alpha = 1, standardize = TRUE,
                              intercept = TRUE, nfolds = 10, cores = 1, valid.nfolds = 3,
-                             lambda = "lambda.1se", detection.info = TRUE, target.weights = NULL, source.weights = NULL, C0 = 2, ...) {
+                             lambda = "lambda.1se", lambda.seq = NULL, detection.info = TRUE, target.weights = NULL, source.weights = NULL, C0 = 2, ...) {
 
   family <- match.arg(family)
 
@@ -92,42 +94,69 @@ source_detection <- function(target, source = NULL, family = c("gaussian", "bino
   } else {
     folds <- createFolds_binary(target$y, valid.nfolds)
   }
+
+  num_try <- 20
+
+  # evaluate loss for each lambda candidate through CV
   loss.cv <- t(sapply(1:valid.nfolds, function(i){
     source.loss <- sapply(1:length(source), function(k){
       if (lambda == "lambda.1se") {
+        n_try <- 0
         while(T) {
-          wa <- try(coef(cv.glmnet(x = as.matrix(rbind(target$x[-folds[[i]], , drop = F], source[[k]]$x)), y = c(target$y[-folds[[i]]], source[[k]]$y), weights = c(target.weights[-folds[[i]]], source.weights[[k]]), family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, ...)), silent = TRUE)
+          n_try <- n_try + 1
+          wa <- try(coef(cv.glmnet(x = as.matrix(rbind(target$x[-folds[[i]], , drop = F], source[[k]]$x)), y = c(target$y[-folds[[i]]], source[[k]]$y), weights = c(target.weights[-folds[[i]]], source.weights[[k]]), family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, lambda = lambda.seq, ...)), silent = TRUE)
           # wa <- try(coef(cv.glmnet(x = as.matrix(source[[k]]$x), y = source[[k]]$y, family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, ...)), silent=TRUE)
-          if (class(wa) != "try-error") {
+          if (!inherits(wa, "try-error")) {
+            break
+          } else if (n_try > 20) {
+            wa <- numeric(ncol(target$x)+1)
             break
           }
+
         }
-      } else {
+      } else if (lambda == "lambda.min") {
+        n_try <- 0
         while(T) {
-          wa.cv <- try(cv.glmnet(x = as.matrix(rbind(target$x[-folds[[i]], , drop = F], source[[k]]$x)), y = c(target$y[-folds[[i]]], source[[k]]$y), weights = c(target.weights[-folds[[i]]], source.weights[[k]]), family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, ...), silent = TRUE)
+          n_try <- n_try + 1
+          wa.cv <- try(cv.glmnet(x = as.matrix(rbind(target$x[-folds[[i]], , drop = F], source[[k]]$x)), y = c(target$y[-folds[[i]]], source[[k]]$y), weights = c(target.weights[-folds[[i]]], source.weights[[k]]), family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, lambda = lambda.seq, ...), silent = TRUE)
           # wa.cv <- try(cv.glmnet(x = as.matrix(source[[k]]$x), y = source[[k]]$y, family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, ...), silent=TRUE)
-          if (class(wa.cv) != "try-error") {
+          if (!inherits(wa.cv, "try-error")) {
             wa <- c(wa.cv$glmnet.fit$a0[which(wa.cv$lambda == wa.cv$lambda.min)], wa.cv$glmnet.fit$beta[, which(wa.cv$lambda == wa.cv$lambda.min)])
+            break
+          } else if (n_try > 20) {
+            wa <- numeric(ncol(target$x)+1)
             break
           }
         }
 
       }
+
       loss(wa, as.matrix(target$x[folds[[i]], , drop = F]), target$y[folds[[i]]], family)
     })
 
+    # calculate the estimator for each lambda candidate
     if (lambda == "lambda.1se") {
+      n_try <- 0
       while(T) {
-        wa.target <- try(coef(cv.glmnet(x = as.matrix(target$x[-folds[[i]], , drop = F]), y = target$y[-folds[[i]]], weights = target.weights[-folds[[i]]], family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, ...)), silent=TRUE)
-        if (class(wa.target) != "try-error") {
+        n_try <- n_try + 1
+        wa.target <- try(coef(cv.glmnet(x = as.matrix(target$x[-folds[[i]], , drop = F]), y = target$y[-folds[[i]]], weights = target.weights[-folds[[i]]], family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, lambda = lambda.seq, ...)), silent=TRUE)
+        if (!inherits(wa.target, "try-error")) {
+          break
+        } else if (n_try > 20) {
+          wa.target <- numeric(ncol(target$x)+1)
           break
         }
       }
-    } else {
+    } else if (lambda == "lambda.min") {
+      n_try <- 0
       while(T) {
-        wa.cv <- try(cv.glmnet(x = as.matrix(target$x[-folds[[i]], , drop = F]), y = target$y[-folds[[i]]], weights = target.weights[-folds[[i]]], family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, ...), silent=TRUE)
-        if (class(wa.cv) != "try-error") {
+        n_try <- n_try + 1
+        wa.cv <- try(cv.glmnet(x = as.matrix(target$x[-folds[[i]], , drop = F]), y = target$y[-folds[[i]]], weights = target.weights[-folds[[i]]], family = family, alpha = alpha, parallel = I(cores > 1), standardize = standardize, intercept = intercept, nfolds = nfolds, lambda = lambda.seq, ...), silent=TRUE)
+        if (!inherits(wa.cv, "try-error")) {
           wa.target <- c(wa.cv$glmnet.fit$a0[which(wa.cv$lambda == wa.cv$lambda.min)], wa.cv$glmnet.fit$beta[, which(wa.cv$lambda == wa.cv$lambda.min)])
+          break
+        } else if (n_try > 20) {
+          wa.target <- numeric(ncol(target$x)+1)
           break
         }
       }

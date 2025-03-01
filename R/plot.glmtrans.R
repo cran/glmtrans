@@ -8,7 +8,7 @@
 #' @return a "ggplot" visualization with the transferable threshold and losses of different sources.
 #' @seealso \code{\link{glmtrans}}, \code{\link{source_detection}}, \code{\link[ggplot2]{ggplot}}.
 #' @references
-#' Tian, Y. and Feng, Y., 2021. \emph{Transfer learning with high-dimensional generalized linear models. Submitted.}
+#' Tian, Y., & Feng, Y. (2023). \emph{Transfer learning under high-dimensional generalized linear models. Journal of the American Statistical Association, 118(544), 2684-2697.}
 #'
 #' @examples
 #' set.seed(1, kind = "L'Ecuyer-CMRG")
